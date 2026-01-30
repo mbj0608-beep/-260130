@@ -1,0 +1,8 @@
+{
+  "name": "灵动指尖：Gemini 手势大挑战",
+  "description": "一个利用 Gemini Live API 实时的手势识别小游戏。通过摄像头与 AI 互动，完成各种有趣的手势挑战，比拼反应速度与准确度。",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
