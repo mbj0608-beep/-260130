@@ -1,5 +1,5 @@
 {
-  "name": "灵动指尖：gemini-手势大挑战",
+  "name": "霓虹手势：离线感应大挑战",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.38.0"
+
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -4,118 +4,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>灵动指尖：Gemini 手势大挑战</title>
+    <title>霓虹手势：离线感应挑战</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @keyframes pulse-slow {
-            0%, 100% { opacity: 0.4; }
-            50% { opacity: 0.8; }
+        @keyframes star-float {
+            0%, 100% { transform: translateY(0) scale(1); opacity: 0.8; }
+            50% { transform: translateY(-10px) scale(1.1); opacity: 1; }
         }
-        .animate-pulse-slow { animation: pulse-slow 3s infinite; }
-        .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .star { animation: star-float 2s infinite ease-in-out; }
+        .glass { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        #gameCanvas { filter: drop-shadow(0 0 10px rgba(236, 72, 153, 0.5)); }
+        video { transform: scaleX(-1); } /* 镜像画面，方便用户对齐 */
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "@google/genai": "https://esm.sh/@google/genai@^1.38.0"
-  }
-}
-</script>
 </head>
-<body class="bg-black text-white overflow-hidden font-sans">
+<body class="bg-black text-white overflow-hidden font-sans select-none touch-none">
 
-    <!-- 背景摄像头视频 -->
-    <video id="bgVideo" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover opacity-40 transition-opacity duration-1000"></video>
+    <!-- 背景摄像头 -->
+    <video id="bgVideo" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover opacity-60"></video>
     
     <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none"></div>
+    <div class="absolute inset-0 bg-gradient-to-tr from-black/80 via-transparent to-black/40 pointer-events-none"></div>
+
+    <!-- 游戏画布 (显示星星和特效) -->
+    <canvas id="gameCanvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
 
     <!-- UI 层 -->
     <div id="app" class="relative z-10 w-full h-screen flex flex-col items-center justify-between p-6">
         
-        <!-- 头部 HUD -->
+        <!-- 头部 -->
         <header class="w-full flex justify-between items-start pt-4">
             <div>
-                <h1 class="text-2xl font-black italic tracking-tighter flex items-center gap-2">
-                    <span class="text-pink-500">◆</span> 灵动指尖
+                <h1 class="text-2xl font-black italic tracking-tighter text-pink-500">
+                    NEON GESTURE
                 </h1>
-                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">AI Gesture Game</p>
+                <p class="text-[10px] text-white/50 font-bold uppercase tracking-[0.3em]">Offline Motion Engine</p>
             </div>
-            <div id="scoreContainer" class="hidden glass px-4 py-2 rounded-2xl flex items-center gap-3">
-                <span class="text-yellow-400 text-xl">🏆</span>
-                <span id="scoreValue" class="text-xl font-bold tabular-nums">0</span>
+            <div class="glass px-4 py-2 rounded-2xl flex flex-col items-end">
+                <span class="text-[10px] text-pink-400 font-bold">SCORE</span>
+                <span id="scoreValue" class="text-2xl font-black tabular-nums">000</span>
             </div>
         </header>
 
-        <!-- 主内容区 -->
-        <main id="mainContent" class="flex-1 w-full flex flex-col items-center justify-center">
+        <!-- 初始/状态信息 -->
+        <main id="mainUI" class="flex-1 w-full flex flex-col items-center justify-center">
             
-            <!-- 初始界面 -->
-            <div id="view-idle" class="text-center space-y-8 animate-in fade-in">
+            <div id="startScreen" class="text-center space-y-8 animate-in fade-in duration-700">
                 <div class="relative inline-block">
-                    <div class="absolute -inset-8 bg-pink-500/20 blur-3xl rounded-full animate-pulse-slow"></div>
-                    <div class="bg-gradient-to-tr from-pink-500 to-violet-600 p-8 rounded-full relative shadow-2xl">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                    <div class="absolute -inset-10 bg-pink-500/30 blur-3xl rounded-full"></div>
+                    <div class="bg-gradient-to-tr from-pink-500 to-violet-600 p-8 rounded-full relative shadow-2xl border-4 border-white/20">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" viewBox="0 0 16 16">
+                          <path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2a.5.5 0 0 1 .5-.5zM0 8a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2A.5.5 0 0 1 0 8zm13 0a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5zM2.828 2.828a.5.5 0 0 1 .708 0l1.414 1.414a.5.5 0 1 1-.708.708L2.828 3.536a.5.5 0 0 1 0-.708zm10.344 10.344a.5.5 0 0 1 .708 0l1.414 1.414a.5.5 0 0 1-.708.708l-1.414-1.414a.5.5 0 0 1 0-.708zm0-10.344a.5.5 0 0 1 0 .708l-1.414 1.414a.5.5 0 1 1-.708-.708l1.414-1.414a.5.5 0 0 1 .708 0zm-10.344 10.344a.5.5 0 0 1 0 .708l-1.414 1.414a.5.5 0 0 1-.708-.708l1.414-1.414a.5.5 0 0 1 .708 0z"/>
+                        </svg>
                     </div>
                 </div>
-                <div class="space-y-4">
-                    <h2 class="text-3xl font-bold">手势大挑战</h2>
-                    <p class="text-gray-300 max-w-xs mx-auto">Gemini 将担任你的裁判。跟随它的语音指令，做出对应的手势！</p>
+                <div class="space-y-2">
+                    <h2 class="text-3xl font-black italic">感应挑战</h2>
+                    <p class="text-white/60 text-sm px-10">在星星出现时，挥动手臂扫过它们即可得分！无需触碰屏幕。</p>
                 </div>
-                <button id="startBtn" class="w-full py-4 bg-white text-black font-black rounded-2xl shadow-xl active:scale-95 transition-transform">
-                    开启摄像头挑战
+                <button id="startBtn" class="w-64 py-4 bg-pink-500 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all">
+                    立即开启
                 </button>
             </div>
 
-            <!-- 连接中界面 -->
-            <div id="view-connecting" class="hidden text-center space-y-6">
-                <div class="w-16 h-16 border-4 border-pink-500/30 border-t-pink-500 rounded-full animate-spin mx-auto"></div>
-                <p class="text-xl font-medium">正在唤醒 AI 裁判...</p>
-            </div>
-
-            <!-- 游戏中界面 -->
-            <div id="view-playing" class="hidden w-full flex flex-col items-center gap-8 animate-in zoom-in duration-500">
-                <div class="glass p-8 rounded-[3rem] w-full max-w-sm flex flex-col items-center gap-4 shadow-2xl relative">
-                    <div id="gestureEmoji" class="text-8xl mb-2 animate-bounce">👋</div>
-                    <div class="text-center">
-                        <h3 id="gestureName" class="text-3xl font-black">准备开始</h3>
-                        <p id="gestureDesc" class="text-gray-400 text-sm">等待主持人发令...</p>
-                    </div>
-                    <div class="w-full h-1 bg-white/10 rounded-full mt-4 overflow-hidden">
-                        <div id="progressBar" class="h-full bg-pink-500 w-0 transition-all duration-500"></div>
-                    </div>
-                </div>
-                
-                <!-- 对话框 -->
-                <div class="w-full max-w-sm">
-                    <div class="bg-black/60 border border-white/10 p-4 rounded-2xl min-h-[80px] flex items-center justify-center text-center">
-                        <p id="aiTranscription" class="text-pink-200 italic font-medium">AI 正在观察你的第一个动作...</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 结算界面 -->
-            <div id="view-finished" class="hidden text-center space-y-8 animate-in slide-in-from-bottom">
-                <div class="text-7xl">👑</div>
-                <h2 class="text-4xl font-black italic">挑战大满贯!</h2>
-                <div class="glass p-8 rounded-3xl w-full max-w-xs mx-auto">
-                    <p class="text-xs text-pink-400 font-bold uppercase tracking-widest mb-1">Final Score</p>
-                    <p id="finalScore" class="text-6xl font-black">0</p>
-                </div>
-                <button onclick="location.reload()" class="w-full py-4 bg-white text-black font-black rounded-2xl">
-                    重新开始
-                </button>
+            <div id="gameHint" class="hidden text-white/40 text-sm font-bold animate-pulse">
+                挥动手势，捕捉闪耀！
             </div>
 
         </main>
 
-        <!-- 页脚 -->
-        <footer class="w-full text-center pb-4">
-            <p id="statusHint" class="text-white/30 text-[10px] uppercase tracking-[0.2em]">Powered by Gemini 2.5 Flash</p>
+        <!-- 状态栏 -->
+        <footer class="w-full flex justify-between items-center text-[10px] text-white/30 uppercase tracking-widest">
+            <span id="fpsDisplay">FPS: --</span>
+            <span>Offline Mode v2.0</span>
         </footer>
     </div>
 
-    <!-- 隐藏的画布，用于捕捉帧 -->
-    <canvas id="frameCanvas" class="hidden" width="320" height="240"></canvas>
+    <!-- 用于处理运动检测的隐藏画布 -->
+    <canvas id="motionCanvas" class="hidden" width="64" height="48"></canvas>
+
 </body>
 </html>
