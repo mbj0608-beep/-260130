@@ -27,7 +27,6 @@ class GameEngine {
     private isPlaying: boolean = false;
     private audioCtx: AudioContext | null = null;
     
-    // 状态标识
     private cameraActive: boolean = false;
     private lastTouchX: number = -1;
     private lastTouchY: number = -1;
@@ -49,7 +48,6 @@ class GameEngine {
             if (!this.isPlaying) return;
             const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
             const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
-            // 将坐标转换为 0~1 的比例
             this.lastTouchX = clientX / window.innerWidth;
             this.lastTouchY = clientY / window.innerHeight;
         };
@@ -58,7 +56,6 @@ class GameEngine {
         window.addEventListener('touchmove', handleInteraction, { passive: false });
         window.addEventListener('mousedown', handleInteraction);
         window.addEventListener('mousemove', (e) => {
-            // 只有按下鼠标或移动时才记录
             if (e.buttons > 0) handleInteraction(e);
         });
     }
@@ -69,56 +66,75 @@ class GameEngine {
     }
 
     /**
-     * 初始化环境
+     * 初始化：仅绑定按钮，不主动请求硬件
      */
-    async init() {
+    init() {
         const startBtn = document.getElementById('startBtn');
-        const hint = document.getElementById('gameHint');
         const badge = document.getElementById('modeBadge');
-        
-        // 1. 检查浏览器支持
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            this.setFallbackMode("浏览器不支持摄像头");
-            startBtn?.addEventListener('click', () => this.start());
-            return;
+        if (badge) badge.innerText = "准备就绪";
+
+        startBtn?.addEventListener('click', async () => {
+            // 在用户点击时请求摄像头
+            await this.handleStartSequence();
+        });
+    }
+
+    private async handleStartSequence() {
+        const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
+        if (startBtn) {
+            startBtn.disabled = true;
+            startBtn.innerText = "正在开启...";
         }
 
         try {
-            // 2. 尝试获取摄像头
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user' },
-                audio: false 
-            }).catch(async () => {
-                // 再次尝试不带特定约束的请求
-                return await navigator.mediaDevices.getUserMedia({ video: true });
-            });
-
+            // 尝试请求摄像头
+            const stream = await this.requestCamera();
             if (stream) {
                 this.video.srcObject = stream;
                 await this.video.play();
                 this.cameraActive = true;
+                const badge = document.getElementById('modeBadge');
                 if (badge) badge.innerText = "感应模式开启";
             }
         } catch (err: any) {
-            // 3. 静默处理“未找到设备”错误
-            console.log("进入触控补偿模式:", err.name);
-            this.setFallbackMode(err.name === 'NotFoundError' ? "未检测到摄像头" : "权限受限");
+            console.warn("摄像头不可用，切换至触控模式:", err.name);
+            this.setFallbackMode(err.name === 'NotFoundError' ? "未检测到硬件" : "权限已拒绝");
         }
 
-        startBtn?.addEventListener('click', () => this.start());
+        // 无论摄像头是否成功，都开始游戏
+        this.start();
+    }
+
+    private async requestCamera(): Promise<MediaStream | null> {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('NotSupported');
+        }
+
+        // 方案 A: 尝试获取前置摄像头
+        try {
+            return await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'user' },
+                audio: false 
+            });
+        } catch (e) {
+            // 方案 B: 降级到任何视频设备
+            return await navigator.mediaDevices.getUserMedia({ 
+                video: true,
+                audio: false 
+            });
+        }
     }
 
     private setFallbackMode(reason: string) {
         this.cameraActive = false;
-        this.video.style.display = 'none'; // 隐藏视频元素，避免黑屏
+        this.video.style.display = 'none';
         const badge = document.getElementById('modeBadge');
         const desc = document.getElementById('gameDesc');
-        if (badge) badge.innerText = "触控模式 (离线)";
-        if (desc) desc.innerText = `[${reason}] 别担心，您依然可以通过点击或滑动屏幕来捕捉星星！`;
+        if (badge) badge.innerText = "触控模式";
+        if (desc) desc.innerText = `[${reason}] 别担心，你可以直接点击屏幕上的星星来捕捉它们！`;
     }
 
     private start() {
-        if (this.isPlaying) return;
         this.isPlaying = true;
         this.score = 0;
         this.stars = [];
@@ -126,7 +142,6 @@ class GameEngine {
         document.getElementById('startScreen')?.classList.add('hidden');
         document.getElementById('gameHint')?.classList.remove('hidden');
         
-        // 初始化音效引擎
         try {
             this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
         } catch(e) {}
@@ -213,7 +228,6 @@ class GameEngine {
 
             let isHit = false;
 
-            // 1. 触控/光标检测
             if (this.lastTouchX !== -1) {
                 const dx = star.x - this.lastTouchX;
                 const dy = star.y - this.lastTouchY;
@@ -221,7 +235,6 @@ class GameEngine {
                 if (dist < 0.15) isHit = true;
             } 
             
-            // 2. 摄像头动作检测
             if (!isHit && this.cameraActive && mw > 0) {
                 const gridX = Math.floor(star.x * mw);
                 const gridY = Math.floor(star.y * mh);
@@ -242,7 +255,7 @@ class GameEngine {
                 this.score += 10;
                 this.updateScoreUI();
                 this.playCollectSound();
-                this.lastTouchX = -1; // 触发后重置，防止同一帧重复触发
+                this.lastTouchX = -1;
                 this.lastTouchY = -1;
             }
 
@@ -251,7 +264,6 @@ class GameEngine {
                 if (star.scale > 4) star.active = false;
             }
 
-            // 绘制逻辑
             const screenX = star.x * this.gameCanvas.width;
             const screenY = star.y * this.gameCanvas.height;
             this.gameCtx.save();
